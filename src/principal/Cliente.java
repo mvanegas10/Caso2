@@ -260,7 +260,7 @@ public class Cliente {
 			certificado_cliente.verify(certificado_cliente.getPublicKey());
 			byte[] cert = certificado_cliente.getEncoded();
 			salida.write(cert);
-			System.out.println(CLIENTE + SEPARADOR + cert.toString());
+			System.out.println(CLIENTE + SEPARADOR + cert);
 
 			mensaje_entrante = entrada.readLine();
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
@@ -270,12 +270,12 @@ public class Cliente {
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
 			String[] datos = mensaje_entrante.split(SEPARADOR);
 			if (datos[1].equals(CERTSRV)) num2 = datos[0];
-			else excepcion(sc, salida, entrada, "La respuesta no es la esperada (Num1 + CERTSVR)");;
+			else excepcion(sc, salida, entrada, "La respuesta no es la esperada (Num1 + CERTSVR)");
 
 			mensaje_entrante = entrada.readLine();
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(mensaje_entrante != null) cert = mensaje_entrante.getBytes();
-			else excepcion(sc, salida, entrada, "El servidor no envia el certificado");;
+			if(mensaje_entrante != null) cert = (mensaje_entrante.trim()).getBytes();
+			else excepcion(sc, salida, entrada, "El servidor no envia el certificado");
 			certificado_servidor = obtenerCertificado(cert);
 			
 			mensaje_saliente = RTA + SEPARADOR + OK + '\n';
@@ -285,7 +285,7 @@ public class Cliente {
 			mensaje_entrante = entrada.readLine();
 			String num1_recibido = descifrar(HMAC[0], certificado_servidor.getPublicKey(), mensaje_entrante.getBytes());
 			if (num1_recibido.equals(num1)) System.out.println(SERVIDOR + SEPARADOR + num1_recibido);
-			else excepcion(sc, salida, entrada, "El num1 recibido no coincide con el enviado");;
+			else excepcion(sc, salida, entrada, "El num1 recibido no coincide con el enviado");
 			
 			mensaje_saliente = RTA + SEPARADOR + OK + '\n';
 			salida.writeBytes(mensaje_saliente);
@@ -294,10 +294,10 @@ public class Cliente {
 			//			Envia numero 2 encriptado con llave privada
 
 			byte[] texto_cifrado = cifrar(ASIMETRICOS[0], pair, num2);
-			String envio = Transformacion.transformar(texto_cifrado);
-			mensaje_saliente = envio;
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+//			String envio = Transformacion.transformar(texto_cifrado);
+//			mensaje_saliente = envio;
+			salida.write(texto_cifrado);;
+//			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
 			mensaje_entrante = entrada.readLine();
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
 			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El Num2 no era el esperado por el servidor");;
@@ -307,8 +307,7 @@ public class Cliente {
 			cerrarConexion(sc, salida, entrada);
 		}
 		catch(Exception e){
-			System.err.println("Error: " + e.getMessage());
-
+			e.printStackTrace();
 		}
 	}
 
