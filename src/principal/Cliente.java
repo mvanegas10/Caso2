@@ -1,34 +1,33 @@
 package principal;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.Socket;
 import java.security.InvalidKeyException;
+import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Security;
 import java.security.SignatureException;
-import java.security.cert.CertPath;
-import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
-import java.util.ArrayList;
 import java.util.Date;
-import java.util.List;
 
 import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.Mac;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.security.auth.x500.X500Principal;
 
 import org.bouncycastle.asn1.x509.BasicConstraints;
@@ -40,12 +39,7 @@ import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
 
-import java.io.FileInputStream;
-import java.security.cert.CertPath;
-import java.security.cert.Certificate;
-import java.security.cert.CertificateFactory;
-import java.util.ArrayList;
-import java.util.List;
+import com.sun.org.apache.xalan.internal.xsltc.cmdline.Transform;
 
 public class Cliente {
 
@@ -101,6 +95,13 @@ public class Cliente {
 
 	private static X509Certificate certificado_servidor;
 	
+	private static SecretKey llaveHash;
+	
+	public static SecretKey generarClaveHMAC (String algoritmo, String mensaje) throws NoSuchAlgorithmException, InvalidKeyException, UnsupportedEncodingException {
+		SecretKeySpec key = new SecretKeySpec(mensaje.getBytes(), 0, mensaje.length(), algoritmo);
+		return key;
+	}
+	
 	/**
 	 * Metodo que se encarga de enviar una excepcion y cerrar la conexion
 	 * @param sc
@@ -136,6 +137,7 @@ public class Cliente {
 	 * @throws Exception
 	 */
 	public static String descifrar(String algoritmo, PublicKey key, byte[] cipheredText) throws Exception{
+		
 		Cipher cipher = Cipher.getInstance(algoritmo);
 		cipher.init(Cipher.DECRYPT_MODE, key);
 		byte [] clearText = cipher.doFinal(cipheredText);
@@ -151,17 +153,12 @@ public class Cliente {
 	 * @return
 	 * @throws Exception
 	 */
-	public static byte[] cifrar(String algoritmo, KeyPair pair, String texto) throws Exception{
-		KeyPairGenerator generator = KeyPairGenerator.getInstance(algoritmo);
-		generator.initialize(1024);
-		pair = generator.generateKeyPair();
+	public static byte[] cifrar(String algoritmo, Key key, byte[] mensaje) throws Exception{
 		Cipher cipher = Cipher.getInstance(algoritmo);
-		String pwd = texto;
-		byte [] clearText = pwd.getBytes();
-		String s1 = new String (clearText);
-		cipher.init(Cipher.ENCRYPT_MODE, pair.getPublic());
+		String s1 = new String (mensaje);
+		cipher.init(Cipher.ENCRYPT_MODE, key);
 		long startTime = System.nanoTime();
-		byte [] cipheredText = cipher.doFinal(clearText);
+		byte [] cipheredText = cipher.doFinal(mensaje);
 		long endTime = System.nanoTime();
 		return cipheredText;
 	}
@@ -171,11 +168,13 @@ public class Cliente {
 	 * @param bytes
 	 * @return
 	 * @throws CertificateException
+	 * @throws IOException 
 	 */
-	public static X509Certificate obtenerCertificado (byte[] bytes) throws CertificateException {
+	public static X509Certificate obtenerCertificado (byte[] bytes) throws CertificateException, IOException {
 		CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
 		InputStream in = new ByteArrayInputStream(bytes);
 		X509Certificate cert = (X509Certificate)certFactory.generateCertificate(in);
+		in.close();
 		return cert;
 	}
 
@@ -237,12 +236,12 @@ public class Cliente {
 
 			//			Envia los algoritmos
 
-			mensaje_saliente = ALGORITMOS + SEPARADOR + ASIMETRICOS[0] + SEPARADOR + HMAC[1] + '\n';
+			mensaje_saliente = ALGORITMOS + SEPARADOR + ASIMETRICOS[0] + SEPARADOR + HMAC[0] + '\n';
 			salida.writeBytes(mensaje_saliente);
 			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
 			mensaje_entrante = entrada.readLine();
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El servidor no acepta los algoritmos");;
+			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El servidor no acepta los algoritmos");
 
 			num1 = Double.toString(Math.random());
 			mensaje_saliente = num1 + SEPARADOR + CERTPA + '\n';
@@ -264,7 +263,7 @@ public class Cliente {
 
 			mensaje_entrante = entrada.readLine();
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El servidor no acepta el certificado");;
+			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El servidor no acepta el certificado");
 
 			mensaje_entrante = entrada.readLine();
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
@@ -272,19 +271,18 @@ public class Cliente {
 			if (datos[1].equals(CERTSRV)) num2 = datos[0];
 			else excepcion(sc, salida, entrada, "La respuesta no es la esperada (Num1 + CERTSVR)");
 
-			mensaje_entrante = entrada.readLine();
-			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(mensaje_entrante != null) cert = (mensaje_entrante.trim()).getBytes();
-			else excepcion(sc, salida, entrada, "El servidor no envia el certificado");
-			certificado_servidor = obtenerCertificado(cert);
+			InputStream in = sc.getInputStream();
+			in.read(cert);
+			System.out.println(SERVIDOR + SEPARADOR + cert);
+			certificado_servidor = obtenerCertificado(cert);		
 			
 			mensaje_saliente = RTA + SEPARADOR + OK + '\n';
 			salida.writeBytes(mensaje_saliente);
 			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
 
 			mensaje_entrante = entrada.readLine();
-			String num1_recibido = descifrar(HMAC[0], certificado_servidor.getPublicKey(), mensaje_entrante.getBytes());
-			if (num1_recibido.equals(num1)) System.out.println(SERVIDOR + SEPARADOR + num1_recibido);
+			String num1_recibido = descifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), Transformacion.destransformar(mensaje_entrante));
+			if (num1_recibido.equals(num1)) System.out.println(SERVIDOR + SEPARADOR + "CIFRADO" + SEPARADOR + mensaje_entrante + '\n' + SERVIDOR + SEPARADOR + "DESCIFRADO" + SEPARADOR + num1_recibido );
 			else excepcion(sc, salida, entrada, "El num1 recibido no coincide con el enviado");
 			
 			mensaje_saliente = RTA + SEPARADOR + OK + '\n';
@@ -293,16 +291,73 @@ public class Cliente {
 
 			//			Envia numero 2 encriptado con llave privada
 
-			byte[] texto_cifrado = cifrar(ASIMETRICOS[0], pair, num2);
-//			String envio = Transformacion.transformar(texto_cifrado);
-//			mensaje_saliente = envio;
-			salida.write(texto_cifrado);;
-//			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+			byte[] texto_cifrado = cifrar(ASIMETRICOS[0], pair.getPrivate(), num2.getBytes());
+			mensaje_saliente = Transformacion.transformar(texto_cifrado) + '\n';
+			salida.writeBytes(mensaje_saliente);
+			System.out.println(CLIENTE + SEPARADOR + "CIFRADO" + SEPARADOR + mensaje_saliente);
+			System.out.println(CLIENTE + SEPARADOR + "DESCIFRADO" + SEPARADOR + num2 );
+			
 			mensaje_entrante = entrada.readLine();
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El Num2 no era el esperado por el servidor");;
+			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El Num2 no era el esperado por el servidor");
 
+			//			Inicia envio de ordenes
+			
+			String mensaje = "Mensaje para generar el HMAC";
+			
+			llaveHash = generarClaveHMAC(ASIMETRICOS[0], mensaje);
+			
+			byte[] cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), mensaje.getBytes());
+			
+			byte[] parteA = new byte[117];
+			byte[] parteB = new byte[11];
+			
+			for (int i = 0; i < 117; i++) {
+				parteA[i] = cifrado_servidor[i];
+			}
+			
+			for (int i = 117; i < 128; i++) {
+				parteB[i-117] = cifrado_servidor[i];
+			}
+			
+			byte[] parteA_cifrada = cifrar(ASIMETRICOS[0], pair.getPrivate(), parteA);
+			byte[] parteB_cifrada = cifrar(ASIMETRICOS[0], pair.getPrivate(), parteB);
+			
+			byte[] union = new byte[256];
+			
+			for (int i = 0; i < 128; i++) {
+				union[i] = parteA_cifrada[i];
+			}
+			
+			for (int i = 0; i < 128; i++) {
+				union[i + 128] = parteB_cifrada[i];
+			}
 
+			mensaje_saliente = INIT + SEPARADOR  + Transformacion.transformar(union) + '\n';
+			salida.writeBytes(mensaje_saliente);
+			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+
+			//			Enviar ordenes
+			
+			cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), (ORDENES + SEPARADOR + Integer.toString(10)).getBytes());
+			mensaje_saliente = Transformacion.transformar(cifrado_servidor)  + '\n';
+			salida.writeBytes(mensaje_saliente);
+			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+			
+			mensaje_saliente = ORDENES + SEPARADOR + Integer.toString(10);
+			Mac mac = Mac.getInstance(HMAC[0]);
+			mac.init(llaveHash);
+			byte[] digest = mac.doFinal(mensaje_saliente.getBytes());
+
+			cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), digest);
+			mensaje_saliente = Transformacion.transformar(cifrado_servidor) + '\n';
+			salida.writeBytes(mensaje_saliente);
+			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+			
+			mensaje_entrante = entrada.readLine();
+			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
+			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El Num2 no era el esperado por el servidor");
+			
 			//			Cierra la conexion
 			cerrarConexion(sc, salida, entrada);
 		}
