@@ -24,7 +24,6 @@ import java.security.cert.X509Certificate;
 import java.util.Date;
 
 import javax.crypto.Cipher;
-import javax.crypto.KeyGenerator;
 import javax.crypto.Mac;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
@@ -38,10 +37,6 @@ import org.bouncycastle.asn1.x509.KeyPurposeId;
 import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.X509Extensions;
 import org.bouncycastle.x509.X509V3CertificateGenerator;
-
-import com.sun.org.apache.xalan.internal.xsltc.cmdline.Transform;
-
-import javafx.scene.control.Separator;
 
 public class Cliente {
 
