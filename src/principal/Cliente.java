@@ -99,6 +99,15 @@ public class Cliente {
 	
 	private static SecretKey llaveHash;
 	
+	/**
+	 * 
+	 * @param algoritmo
+	 * @param mensaje
+	 * @return
+	 * @throws NoSuchAlgorithmException
+	 * @throws InvalidKeyException
+	 * @throws UnsupportedEncodingException
+	 */
 	public static SecretKey generarClaveHMAC (String algoritmo, String mensaje) throws NoSuchAlgorithmException, InvalidKeyException, UnsupportedEncodingException {
 		SecretKeySpec key = new SecretKeySpec(mensaje.getBytes(),algoritmo);
 		return key;
