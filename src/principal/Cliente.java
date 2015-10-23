@@ -41,6 +41,8 @@ import org.bouncycastle.x509.X509V3CertificateGenerator;
 
 import com.sun.org.apache.xalan.internal.xsltc.cmdline.Transform;
 
+import javafx.scene.control.Separator;
+
 public class Cliente {
 
 	public static final String HOST = "localhost";
@@ -98,7 +100,7 @@ public class Cliente {
 	private static SecretKey llaveHash;
 	
 	public static SecretKey generarClaveHMAC (String algoritmo, String mensaje) throws NoSuchAlgorithmException, InvalidKeyException, UnsupportedEncodingException {
-		SecretKeySpec key = new SecretKeySpec(mensaje.getBytes(), 0, mensaje.length(), algoritmo);
+		SecretKeySpec key = new SecretKeySpec(mensaje.getBytes(),algoritmo);
 		return key;
 	}
 	
@@ -356,7 +358,7 @@ public class Cliente {
 			
 			mensaje_entrante = entrada.readLine();
 			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El Num2 no era el esperado por el servidor");
+			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "Se enviaron mal las ordenes");
 			
 			//			Cierra la conexion
 			cerrarConexion(sc, salida, entrada);
