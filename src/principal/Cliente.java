@@ -95,6 +95,173 @@ public class Cliente {
 	private static SecretKey llaveHash;
 	
 	/**
+	 * Constructor de la clase
+	 */
+	public Cliente() {
+
+		try{
+
+			//			Crea el socket que se comunica con el puerto 443
+
+			sc = new Socket( HOST , PUERTO );
+			salida = new DataOutputStream(sc.getOutputStream());
+			entrada = new DataInputStream(sc.getInputStream());
+
+			comunicacionServidor(sc, salida, entrada);
+			
+			//			Cierra la conexion
+			cerrarConexion(sc, salida, entrada);
+		}
+		catch(Exception e){
+			e.printStackTrace();
+		}
+	}
+	
+	
+	/**
+	 * Metodo que se comunica con el servidor
+	 * @param sc
+	 * @param salida
+	 * @param entrada
+	 * @throws Exception
+	 */
+	public static void comunicacionServidor(Socket sc, DataOutputStream salida, DataInputStream entrada) throws Exception {
+		//			Inicia sesion con el servidor
+
+		mensaje_saliente = INFORMAR + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+		mensaje_entrante = entrada.readLine();
+		System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
+		if(!mensaje_entrante.equals(EMPEZAR)) excepcion(sc, salida, entrada, "No lograron conectarse");
+
+		//			Envia los algoritmos
+
+		mensaje_saliente = ALGORITMOS + SEPARADOR + ASIMETRICOS[0] + SEPARADOR + HMAC[0] + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+		mensaje_entrante = entrada.readLine();
+		System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
+		if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El servidor no acepta los algoritmos");
+
+		num1 = Double.toString(Math.random());
+		mensaje_saliente = num1 + SEPARADOR + CERTPA + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+
+		//			Genera una llave para luego generar un certificado y enviarlo
+
+		Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
+		KeyPairGenerator kpGen = KeyPairGenerator.getInstance("RSA", "BC");
+		kpGen.initialize(1024, new SecureRandom());
+		KeyPair pair = kpGen.generateKeyPair();
+		certificado_cliente = crearCertificado(pair);
+		certificado_cliente.checkValidity(new Date());
+		certificado_cliente.verify(certificado_cliente.getPublicKey());
+		byte[] cert = certificado_cliente.getEncoded();
+		salida.write(cert);
+		System.out.println(CLIENTE + SEPARADOR + cert);
+
+		mensaje_entrante = entrada.readLine();
+		System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
+		if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El servidor no acepta el certificado");
+
+		mensaje_entrante = entrada.readLine();
+		System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
+		String[] datos = mensaje_entrante.split(SEPARADOR);
+		if (datos[1].equals(CERTSRV)) num2 = datos[0];
+		else excepcion(sc, salida, entrada, "La respuesta no es la esperada (Num1 + CERTSVR)");
+
+		InputStream in = sc.getInputStream();
+		in.read(cert);
+		System.out.println(SERVIDOR + SEPARADOR + cert);
+		certificado_servidor = obtenerCertificado(cert);		
+		
+		mensaje_saliente = RTA + SEPARADOR + OK + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+
+		mensaje_entrante = entrada.readLine();
+		String num1_recibido = descifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), Transformacion.destransformar(mensaje_entrante));
+		if (num1_recibido.equals(num1)) System.out.println(SERVIDOR + SEPARADOR + "CIFRADO" + SEPARADOR + mensaje_entrante + '\n' + SERVIDOR + SEPARADOR + "DESCIFRADO" + SEPARADOR + num1_recibido );
+		else excepcion(sc, salida, entrada, "El num1 recibido no coincide con el enviado");
+		
+		mensaje_saliente = RTA + SEPARADOR + OK + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+
+		//			Envia numero 2 encriptado con llave privada
+
+		byte[] texto_cifrado = cifrar(ASIMETRICOS[0], pair.getPrivate(), num2.getBytes());
+		mensaje_saliente = Transformacion.transformar(texto_cifrado) + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + "CIFRADO" + SEPARADOR + mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + "DESCIFRADO" + SEPARADOR + num2 );
+		
+		mensaje_entrante = entrada.readLine();
+		System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
+		if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El Num2 no era el esperado por el servidor");
+
+		//			Inicia envio de ordenes
+		
+		String mensaje = "Mensaje para generar el HMAC";
+		
+		llaveHash = generarClaveHMAC(ASIMETRICOS[0], mensaje);
+		
+		byte[] cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), mensaje.getBytes());
+		
+		byte[] parteA = new byte[117];
+		byte[] parteB = new byte[11];
+		
+		for (int i = 0; i < 117; i++) {
+			parteA[i] = cifrado_servidor[i];
+		}
+		
+		for (int i = 117; i < 128; i++) {
+			parteB[i-117] = cifrado_servidor[i];
+		}
+		
+		byte[] parteA_cifrada = cifrar(ASIMETRICOS[0], pair.getPrivate(), parteA);
+		byte[] parteB_cifrada = cifrar(ASIMETRICOS[0], pair.getPrivate(), parteB);
+		
+		byte[] union = new byte[256];
+		
+		for (int i = 0; i < 128; i++) {
+			union[i] = parteA_cifrada[i];
+		}
+		
+		for (int i = 0; i < 128; i++) {
+			union[i + 128] = parteB_cifrada[i];
+		}
+
+		mensaje_saliente = INIT + SEPARADOR  + Transformacion.transformar(union) + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+
+		//			Enviar ordenes
+		
+		cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), (ORDENES + SEPARADOR + Integer.toString(10)).getBytes());
+		mensaje_saliente = Transformacion.transformar(cifrado_servidor)  + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+		
+		mensaje_saliente = ORDENES + SEPARADOR + Integer.toString(10);
+		Mac mac = Mac.getInstance(HMAC[0]);
+		mac.init(llaveHash);
+		byte[] digest = mac.doFinal(mensaje_saliente.getBytes());
+
+		cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), digest);
+		mensaje_saliente = Transformacion.transformar(cifrado_servidor) + '\n';
+		salida.writeBytes(mensaje_saliente);
+		System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
+		
+		mensaje_entrante = entrada.readLine();
+		System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
+		if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "Se enviaron mal las ordenes");
+		
+	}
+	
+	/**
 	 * 
 	 * @param algoritmo
 	 * @param mensaje
@@ -215,161 +382,6 @@ public class Cliente {
 				new GeneralName(GeneralName.rfc822Name, "test@test.test")));
 
 		return certGen.generateX509Certificate(pair.getPrivate(), "BC");
-	}
-
-	/**
-	 * Metodo main
-	 * @param args
-	 */
-	public static void main(String[] args) {
-
-		try{
-
-			//			Crea el socket que se comunica con el puerto 443
-
-			sc = new Socket( HOST , PUERTO );
-			salida = new DataOutputStream(sc.getOutputStream());
-			entrada = new DataInputStream(sc.getInputStream());
-
-			//			Inicia sesion con el servidor
-
-			mensaje_saliente = INFORMAR + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
-			mensaje_entrante = entrada.readLine();
-			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(EMPEZAR)) excepcion(sc, salida, entrada, "No lograron conectarse");
-
-			//			Envia los algoritmos
-
-			mensaje_saliente = ALGORITMOS + SEPARADOR + ASIMETRICOS[0] + SEPARADOR + HMAC[0] + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
-			mensaje_entrante = entrada.readLine();
-			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El servidor no acepta los algoritmos");
-
-			num1 = Double.toString(Math.random());
-			mensaje_saliente = num1 + SEPARADOR + CERTPA + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
-
-			//			Genera una llave para luego generar un certificado y enviarlo
-
-			Security.addProvider(new org.bouncycastle.jce.provider.BouncyCastleProvider());
-			KeyPairGenerator kpGen = KeyPairGenerator.getInstance("RSA", "BC");
-			kpGen.initialize(1024, new SecureRandom());
-			KeyPair pair = kpGen.generateKeyPair();
-			certificado_cliente = crearCertificado(pair);
-			certificado_cliente.checkValidity(new Date());
-			certificado_cliente.verify(certificado_cliente.getPublicKey());
-			byte[] cert = certificado_cliente.getEncoded();
-			salida.write(cert);
-			System.out.println(CLIENTE + SEPARADOR + cert);
-
-			mensaje_entrante = entrada.readLine();
-			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El servidor no acepta el certificado");
-
-			mensaje_entrante = entrada.readLine();
-			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			String[] datos = mensaje_entrante.split(SEPARADOR);
-			if (datos[1].equals(CERTSRV)) num2 = datos[0];
-			else excepcion(sc, salida, entrada, "La respuesta no es la esperada (Num1 + CERTSVR)");
-
-			InputStream in = sc.getInputStream();
-			in.read(cert);
-			System.out.println(SERVIDOR + SEPARADOR + cert);
-			certificado_servidor = obtenerCertificado(cert);		
-			
-			mensaje_saliente = RTA + SEPARADOR + OK + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
-
-			mensaje_entrante = entrada.readLine();
-			String num1_recibido = descifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), Transformacion.destransformar(mensaje_entrante));
-			if (num1_recibido.equals(num1)) System.out.println(SERVIDOR + SEPARADOR + "CIFRADO" + SEPARADOR + mensaje_entrante + '\n' + SERVIDOR + SEPARADOR + "DESCIFRADO" + SEPARADOR + num1_recibido );
-			else excepcion(sc, salida, entrada, "El num1 recibido no coincide con el enviado");
-			
-			mensaje_saliente = RTA + SEPARADOR + OK + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
-
-			//			Envia numero 2 encriptado con llave privada
-
-			byte[] texto_cifrado = cifrar(ASIMETRICOS[0], pair.getPrivate(), num2.getBytes());
-			mensaje_saliente = Transformacion.transformar(texto_cifrado) + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + "CIFRADO" + SEPARADOR + mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + "DESCIFRADO" + SEPARADOR + num2 );
-			
-			mensaje_entrante = entrada.readLine();
-			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "El Num2 no era el esperado por el servidor");
-
-			//			Inicia envio de ordenes
-			
-			String mensaje = "Mensaje para generar el HMAC";
-			
-			llaveHash = generarClaveHMAC(ASIMETRICOS[0], mensaje);
-			
-			byte[] cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), mensaje.getBytes());
-			
-			byte[] parteA = new byte[117];
-			byte[] parteB = new byte[11];
-			
-			for (int i = 0; i < 117; i++) {
-				parteA[i] = cifrado_servidor[i];
-			}
-			
-			for (int i = 117; i < 128; i++) {
-				parteB[i-117] = cifrado_servidor[i];
-			}
-			
-			byte[] parteA_cifrada = cifrar(ASIMETRICOS[0], pair.getPrivate(), parteA);
-			byte[] parteB_cifrada = cifrar(ASIMETRICOS[0], pair.getPrivate(), parteB);
-			
-			byte[] union = new byte[256];
-			
-			for (int i = 0; i < 128; i++) {
-				union[i] = parteA_cifrada[i];
-			}
-			
-			for (int i = 0; i < 128; i++) {
-				union[i + 128] = parteB_cifrada[i];
-			}
-
-			mensaje_saliente = INIT + SEPARADOR  + Transformacion.transformar(union) + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
-
-			//			Enviar ordenes
-			
-			cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), (ORDENES + SEPARADOR + Integer.toString(10)).getBytes());
-			mensaje_saliente = Transformacion.transformar(cifrado_servidor)  + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
-			
-			mensaje_saliente = ORDENES + SEPARADOR + Integer.toString(10);
-			Mac mac = Mac.getInstance(HMAC[0]);
-			mac.init(llaveHash);
-			byte[] digest = mac.doFinal(mensaje_saliente.getBytes());
-
-			cifrado_servidor = cifrar(ASIMETRICOS[0], certificado_servidor.getPublicKey(), digest);
-			mensaje_saliente = Transformacion.transformar(cifrado_servidor) + '\n';
-			salida.writeBytes(mensaje_saliente);
-			System.out.println(CLIENTE + SEPARADOR + mensaje_saliente);
-			
-			mensaje_entrante = entrada.readLine();
-			System.out.println(SERVIDOR + SEPARADOR + mensaje_entrante);
-			if(!mensaje_entrante.equals(RTA + SEPARADOR + OK)) excepcion(sc, salida, entrada, "Se enviaron mal las ordenes");
-			
-			//			Cierra la conexion
-			cerrarConexion(sc, salida, entrada);
-		}
-		catch(Exception e){
-			e.printStackTrace();
-		}
 	}
 
 }
