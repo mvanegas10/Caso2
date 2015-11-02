@@ -1,16 +1,21 @@
 package generator;
-
-import principal.Cliente;
 import src.PA;
 import uniandes.gload.core.Task;
 import uniandes.gload.examples.clientserver.Client;
 
 public class ClientServerTask extends Task{
+	
+	private Generator generator;
+	
+	public ClientServerTask(Generator generator){
+		super();
+		this.generator = generator;
+	}
 
 	@Override
 	public void fail() {
+		generator.aumentarFallidas();
 		System.out.println(Task.MENSAJE_FAIL);
-		
 	}
 
 	@Override
@@ -29,7 +34,6 @@ public class ClientServerTask extends Task{
 		catch (Exception e){
 			fail();
 		}
-		success();
 	}
 	
 	

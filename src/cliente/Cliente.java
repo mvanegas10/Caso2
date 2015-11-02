@@ -1,4 +1,4 @@
-package principal;
+package cliente;
 
 import java.io.ByteArrayInputStream;
 import java.io.DataInputStream;
@@ -42,7 +42,7 @@ public class Cliente {
 
 	public static final String HOST = "192.168.0.3";
 
-	public static final int PUERTO = 443; 
+	public static final int PUERTO = 8000; 
 
 	public static final String SERVIDOR = "SERVIDOR";
 
@@ -97,9 +97,7 @@ public class Cliente {
 	/**
 	 * Constructor de la clase
 	 */
-	public Cliente() {
-
-		try{
+	public Cliente() throws Exception{
 
 			//			Crea el socket que se comunica con el puerto 443
 
@@ -111,10 +109,7 @@ public class Cliente {
 			
 			//			Cierra la conexion
 			cerrarConexion(sc, salida, entrada);
-		}
-		catch(Exception e){
-			e.printStackTrace();
-		}
+
 	}
 	
 	

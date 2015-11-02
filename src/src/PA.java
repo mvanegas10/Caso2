@@ -55,7 +55,7 @@ public class PA {
 	//Constantes
 	
 	//Puerto de conexion
-	public final static int PUERTO = 443;
+	public final static int PUERTO = 8000;
 	
 	//Cadenas de control
 	public final static String INFORMAR = "INFORMAR";
@@ -120,21 +120,15 @@ public class PA {
 	 * @param direccion. Direccion de conexion al servidor
 	 * @param puerto. Puerto de conexion
 	 */	
-	public PA(String direccion, String nOrdenes){
-				
-		try {
-			Security.addProvider(new BouncyCastleProvider());
-			numOrdenes = nOrdenes;
-			algHMAC = HMACMD5;
-			canal = new Socket(direccion,PUERTO);
-			lector = new BufferedReader(new InputStreamReader(canal.getInputStream()));
-			escritor = new PrintWriter(canal.getOutputStream(),true);
-			generarLlaves();
-		} 
-		catch (IOException e) {
-			
-			e.printStackTrace();
-		}
+	public PA(String direccion, String nOrdenes) throws Exception{
+
+		Security.addProvider(new BouncyCastleProvider());
+		numOrdenes = nOrdenes;
+		algHMAC = HMACMD5;
+		canal = new Socket(direccion,PUERTO);
+		lector = new BufferedReader(new InputStreamReader(canal.getInputStream()));
+		escritor = new PrintWriter(canal.getOutputStream(),true);
+		generarLlaves();
 		
 	}
 	

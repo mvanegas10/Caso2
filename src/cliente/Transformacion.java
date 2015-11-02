@@ -1,4 +1,4 @@
-package principal;
+package cliente;
 
 /**
  * Clase que contiene metodos static que proveen de metodos de transformacion al protocolo.
