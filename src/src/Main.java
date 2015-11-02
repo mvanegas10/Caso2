@@ -15,7 +15,12 @@ public class Main {
 			System.out.println("Numero de ordenes en el punto de atención: ");
 			String ordenes = stdIn.readLine();
 			System.out.println("Ordenes: "+ordenes);
-			PA punto = new PA("localhost", ordenes);
+			PA punto = null;
+			try {
+				punto = new PA("localhost", ordenes);
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
 			System.out.println("Protocolo sin seguridad: 1");
 			System.out.println("Protocolo seguro: 2");
 			String input = stdIn.readLine();
