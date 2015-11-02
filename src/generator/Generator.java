@@ -7,6 +7,7 @@ import uniandes.gload.core.Task;
 
 public class Generator {
 
+	
 	/**
 	 * Generador de carga
 	 */
@@ -18,7 +19,7 @@ public class Generator {
 	public Generator(){
 
 		 // Numero de tareas
-		int numberOfTasks=10;
+		int numberOfTasks=400;
 		// Tiempo en milisegundos
 		int gapBeetwenTasks=20;
 
@@ -35,7 +36,7 @@ public class Generator {
 
 	public static void main(String[] args) {
 		Generator gen=new Generator();
-
+		System.out.println("FIN DE CARGA");
 	}
 
 }

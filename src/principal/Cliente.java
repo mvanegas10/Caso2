@@ -40,7 +40,7 @@ import org.bouncycastle.x509.X509V3CertificateGenerator;
 
 public class Cliente {
 
-	public static final String HOST = "localhost";
+	public static final String HOST = "192.168.0.3";
 
 	public static final int PUERTO = 443; 
 
