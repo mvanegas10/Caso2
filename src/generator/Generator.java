@@ -19,9 +19,9 @@ public class Generator {
 	public Generator(){
 
 		 // Numero de tareas
-		int numberOfTasks=400;
+		int numberOfTasks=200;
 		// Tiempo en milisegundos
-		int gapBeetwenTasks=20;
+		int gapBeetwenTasks=40;
 
 		ClientServerTask work =createTask();
 		generator=new LoadGenerator("prueba", numberOfTasks, work, gapBeetwenTasks);
